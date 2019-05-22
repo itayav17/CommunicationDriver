@@ -5,17 +5,19 @@
 
 MODULE_AUTHOR("Itay Avraham - https://www.linkedin.com/in/itay-avraham-76996b51");
 MODULE_DESCRIPTION("Network packet analayzer");
+MODULE_LICENSE("N/A");
 
-
-static int init(void)
+int init(void)
 {
     printk("Hello");
+
+    return 0;
 }
 
 
 
 
-static int clear(void)
+void clear(void)
 {
     printk("Bye");
 }
