@@ -168,14 +168,17 @@ ReturnOnError:
 
 static void net_driver_exit(void)
 {
+    unsigned int uCounter;
 
+    for(uCounter = 0;
+            uCounter < NET_MAX_MINOR;
+            uCounter++)
+        // Release all the devices.
+        cdev_del(&m_sNetInfo[uCounter].sCharDevice);
 
+    // Remove allocation of device identifiers.
+    unregister_chrdev_region(MKDEV(NET_MAJOR,0),NET_MAX_MINOR);
 }
-
-
-
-
-
 
 
 module_init(net_driver_init);
