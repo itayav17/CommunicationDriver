@@ -24,6 +24,8 @@ struct udphdr *udp_header;
 // IP header struct
 struct iphdr *ip_header;
 
+static char s_pszPacketBuffer[1514];
+
 
 unsigned int hookfn(const struct nf_hook_ops *ops, struct sk_buff *skb,
 			        const struct net_device *in, const struct net_device *out,
@@ -33,6 +35,7 @@ unsigned int hookfn(const struct nf_hook_ops *ops, struct sk_buff *skb,
 			        int (*okfn)(struct sk_buff *))
 #endif
 {
+    char* psPacketBuffer;
     sock_buff =
         skb;
     
@@ -43,17 +46,21 @@ unsigned int hookfn(const struct nf_hook_ops *ops, struct sk_buff *skb,
     if (!sock_buff)
         return NF_ACCEPT;
 
-    if (ip_header->protocol == 17)
+    if (ip_header->protocol == 6)
     {
         // Grab transport header.
         udp_header =
             (struct udphdr *)skb_transport_header(sock_buff);
         
         // Log we’ve got udp packet to /var/log/messages.
-        printk(KERN_INFO "got udp packet \n");
+        printk(KERN_INFO "got tcp packet \n");
 
         return NF_DROP;
     }
+    
+    // Get the TCP data.
+    psPacketBuffer =
+        skb_transport_header(sock_buff);
            
     return NF_ACCEPT;
 }
@@ -70,6 +77,8 @@ static int init(void)
     nfho.priority = NF_IP_PRI_FIRST;
 
     nf_register_hook(&nfho);
+
+    memset(s_pszPacketBuffer,0,1514);
    
     return 0;
 }
