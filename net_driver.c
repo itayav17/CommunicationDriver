@@ -3,39 +3,137 @@
 #include <linux/init.h>
 #include <linux/cdev.h>
 #include <linux/module.h>
+#include <linux/uaccess.h>
+#include <linux/slab.h>
+#include "net_driver.h"
 #include "net_types.h"
+#include "net_defs.h"
 #include "net_macros.h"
+
 
 MODULE_AUTHOR("Itay Avraham - https://www.linkedin.com/in/itay-avraham-76996b51");
 MODULE_DESCRIPTION("A simple linux char driver");
 MODULE_LICENSE("NA");
 
 
-struct file_operations net_file_operations =
-{/*
-    .owner = THIS_MODULE,
-    .llseek = net_llseek,
-    .read = net_read,
-    .write = net_write,
-    .ioctl = net_ioctl,
-    .open = net_open,
-    .release = net_release*/
-};
+//
+// Static variables
+//
 
+// Counts the number of times the device is opened.
+static unsigned int s_uNumberOpens = 0;
 
-struct net_info
-{
-    struct cdev sCharDevice;
-};
-
-
-
-
+//
 // Global variables.
-struct net_info m_sNetInfo[NET_MAX_MINOR];
+//
+
+// Network info (cdev struct is included).
+SNET_INFO m_sNetInfo[NET_MAX_MINOR];
 
 
-ERROR register_driver(void)
+ssize_t net_read(struct file* psFile, char __user* pszUserBuffer,
+                 size_t iCount, loff_t* puOffsetPointer)
+{
+    char* pszBuffer = 
+        (char*)psFile->private_data;
+    ssize_t iLen =
+        iCount - *puOffsetPointer;
+
+
+    if (iLen <= 0)
+        return 0;
+
+    // Read data from a buffer in net_info
+    //   to user buffer
+    if (copy_to_user(psFile->private_data,(void*)(pszBuffer + *puOffsetPointer),
+                        iLen))
+        return -EFAULT;
+
+    // Advanced the counter.
+    *puOffsetPointer +=
+        iLen;
+
+    return iLen; 
+}
+
+
+
+
+ssize_t net_write(struct file* psFile, const char __user* pszUserBuffer,
+                  size_t iCount, loff_t* puOffsetPointer)
+{
+    char* pszBuffer = 
+        (char*)psFile->private_data;
+    ssize_t iLen =
+        iCount - *puOffsetPointer;
+
+    if (iLen <= 0)
+        return 0;
+
+    // Read data from a buffer in net_info
+    //   to user buffer.
+    if (copy_to_user((void*)(pszBuffer + *puOffsetPointer),psFile->private_data,
+                        iLen))
+        return -EFAULT;
+
+    // Advanced the counter.
+    *puOffsetPointer +=
+        iLen;
+
+    return iLen;
+}
+
+
+
+
+ERROR net_open(struct inode* psInode, struct file* psFile)
+{
+    PSNET_INFO psNetInfo = NULL;
+
+    // Advanced the counter.
+    s_uNumberOpens++;
+
+    // Get the net info.
+    psNetInfo =
+        container_of(psInode->i_cdev,SNET_INFO,
+                        sCharDevice);
+
+    // Allocate buffer.
+    psNetInfo->pszBuffer =
+        (char*)kmalloc(NET_INFO_BUFFER_SIZE,GFP_KERNEL);
+
+    // Save the private data.
+    // Don't forget to free in
+    //   the release method.
+    psFile->private_data =
+        psNetInfo->pszBuffer;
+                        
+    return EOK;
+}
+
+
+
+
+ERROR net_release(struct inode* psInode, struct file* psFile)
+{
+    PSNET_INFO psNetInfo = NULL;
+
+
+    // Get the net info.
+    psNetInfo =
+        container_of(psInode->i_cdev,SNET_INFO,
+                        sCharDevice);
+
+    // Allocate buffer.
+    kfree((void*)psNetInfo->pszBuffer);
+
+    return EOK;
+}
+
+
+
+
+ERROR net_register_driver(void)
 {
     dev_t uVersion;
     int iMajor;
@@ -100,7 +198,7 @@ ReturnOnError:
 
 
 
-ERROR link_device_to_opeations(void)
+ERROR net_cdev_init(void)
 {
     unsigned int uNumberOfDevice = 1;
     unsigned int uCounter;
@@ -115,6 +213,12 @@ ERROR link_device_to_opeations(void)
         // Initialize the char device to the
         //   file opeartion fields.
         cdev_init(&m_sNetInfo[uCounter].sCharDevice,&net_file_operations);
+
+        // Member initialization.
+        m_sNetInfo[uCounter].sCharDevice.owner =
+            THIS_MODULE;
+        m_sNetInfo[uCounter].sCharDevice.ops =
+            &net_file_operations;
         
         // Add the device to the system.
         if ((iError = 
@@ -143,14 +247,14 @@ static int net_driver_init(void)
     ERROR iError;
     
     // Register the driver.
-    if ((iError = register_driver() != EOK))
+    if ((iError = net_register_driver() != EOK))
         // Register failed.
         goto ReturnOnError;
 
     // Associated the cdev structure(represent char
     //   device) to the file_operation
     //   structure. 
-    if ((iError = link_device_to_opeations() != EOK))
+    if ((iError = net_cdev_init() != EOK))
         // Register failed.
         goto ReturnOnError;
 
