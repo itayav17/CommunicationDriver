@@ -4,15 +4,31 @@
 #include <sys/mman.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+<<<<<<< HEAD
+#include <sys/msg.h>
+=======
+>>>>>>> cc2165481a5306708d2681f0fd67cf437b7c91d5
 
 
 //
 // Shared memory between processes using IPC library.
 //
 
+<<<<<<< HEAD
+// structure for message queue 
+
+struct mesg_buffer
+{ 
+    long mesg_type; 
+    char mesg_text[100]; 
+} message;
+
+#define SHM_FILE "./shared_mem"
+=======
 
 
 #define SHM_FILE "./shared_data"
+>>>>>>> cc2165481a5306708d2681f0fd67cf437b7c91d5
 #define SHM_FILE_SIZE 255
 
 
@@ -21,6 +37,10 @@ void main()
     int proj_id = 5;
     int counter;
     int shmid;
+<<<<<<< HEAD
+    int msgid;
+=======
+>>>>>>> cc2165481a5306708d2681f0fd67cf437b7c91d5
     char* shm_buff;
     key_t key;
 
@@ -50,6 +70,28 @@ void main()
         printf("Waiting for the client.\n");
         sleep(1);
     }
+<<<<<<< HEAD
+    
+    message.mesg_type = 1;
+    printf("Wrire data to the client...\n");
+    fgets(message.mesg_text,sizeof(message),stdin);
+
+    if ((msgid = msgget(key,0666 | IPC_CREAT)) == -1)
+    {
+        perror("msgget failed.\n");
+        return;
+    }
+
+    if ((msgsnd(msgid,&message,sizeof(message),0) == -1))
+    {
+        perror("msgsnd failed.\n");
+        return;
+    }
+
+    if (!shmdt(shm_buff) == -1)
+        perror("Failed to detach shared memory.\n");
+}
+=======
 
     if (!shmdt(shm_buff) == -1)
         perror("Failed to detach shared memory.\n");
@@ -172,3 +214,4 @@ void main(void)
     return 0;
 
 */
+>>>>>>> cc2165481a5306708d2681f0fd67cf437b7c91d5

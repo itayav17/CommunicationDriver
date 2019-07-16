@@ -10,8 +10,19 @@
 //
 
 
+<<<<<<< HEAD
+// structure for message queue 
+struct mesg_buffer
+{ 
+    long mesg_type; 
+    char mesg_text[100]; 
+} message;
+
+#define SHM_FILE "./shared_mem"
+=======
 
 #define SHM_FILE "./shared_data"
+>>>>>>> cc2165481a5306708d2681f0fd67cf437b7c91d5
 #define SHM_FILE_SIZE 255
 
 
@@ -20,6 +31,10 @@ void main()
     int proj_id = 5;
     int counter;
     int shmid;
+<<<<<<< HEAD
+    int msgid;
+=======
+>>>>>>> cc2165481a5306708d2681f0fd67cf437b7c91d5
     char* shm_buff;
     key_t key;
 
@@ -45,6 +60,35 @@ void main()
     for(counter = 0;
             counter < SHM_FILE_SIZE;
             counter++)
+<<<<<<< HEAD
+        printf("%c",shm_buff[counter]);
+
+
+    *shm_buff = 'b';
+
+    if ((msgid = msgget(key,0666 | IPC_CREAT)) == -1)
+    {
+        perror("msgget failed.\n");
+        return;
+    }
+    
+    if (msgrcv(msgid, &message, sizeof(message), 1, 0) < 0)
+    {
+		perror("msgrcv");
+		return;
+	}
+
+    // display the message 
+    printf("Data Received is : %s \n",  
+           message.mesg_text);
+
+    // Destroy the message queue 
+    msgctl(msgid, IPC_RMID, NULL);
+
+    if (!shmdt(shm_buff) == -1)
+        perror("Failed to detach shared memory.\n");
+}
+=======
         putchar(shm_buff[counter]);
 
     *shm_buff = 'b';
@@ -170,3 +214,4 @@ void main(void)
     return 0;
 
 */
+>>>>>>> cc2165481a5306708d2681f0fd67cf437b7c91d5
