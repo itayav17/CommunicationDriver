@@ -8,7 +8,6 @@
 #include "net_driver.h"
 #include "net_types.h"
 #include "net_defs.h"
-#include "net_macros.h"
 
 
 MODULE_AUTHOR("Itay Avraham - https://www.linkedin.com/in/itay-avraham-76996b51");
