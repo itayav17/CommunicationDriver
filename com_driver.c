@@ -20,6 +20,7 @@ MODULE_LICENSE("GPL");
 dev_t u_dev_t;
 static struct class* dev_class;
 uint8_t* u8_kernel_buffer;
+int32_t i32_value = 0;
 
 // communication info (cdev struct is included).
 SCOM_INFO s_com_info[MINOR_COUNT_NUMBER];
@@ -38,11 +39,14 @@ static long etx_ioctl(struct file* s_file, unsigned int i_cmd,
                       unsigned long ul_arg)
 {
     unsigned long u_return_bytes;
-    int32_t i32_value;
 
+    
     switch(i_cmd)
     {
         case COM_WRITE_VALUE:
+            
+            printk(KERN_INFO "Driver ioctl (COM_WRITE_VALUE) Function Called...!!!\n");
+
             u_return_bytes =
                 copy_from_user(&i32_value ,(int32_t*)ul_arg, sizeof(int32_t));
 
@@ -51,10 +55,17 @@ static long etx_ioctl(struct file* s_file, unsigned int i_cmd,
             break;
 
         case COM_READ_VALUE:
+
+            printk(KERN_INFO "Driver ioctl (COM_READ_VALUE) Function Called...!!!\n");
+
             u_return_bytes =
                 copy_to_user((int32_t*)ul_arg, &i32_value, sizeof(int32_t));
 
             break;
+
+        default:
+
+            printk(KERN_INFO "Driver ioctl (INVALID COMMAND) Function Called...!!!\n");
     }
 
     return 0;

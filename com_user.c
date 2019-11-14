@@ -59,7 +59,7 @@ int main()
                 break;
             case '3':
                 printf("Enter the value to write into driver by sending ioctl command:");
-                scanf("%s", i32_value);
+                scanf("%d", &i32_value);
                 printf("Data Writing ...");
                 ioctl(i_file_descriptor, COM_WRITE_VALUE, (int32_t*)&i32_value);
                 printf("Done!\n");

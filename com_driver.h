@@ -8,8 +8,8 @@
 
 typedef int                 ERROR;
 
-#define COM_READ_VALUE _IOW('a','a',int32_t*)
-#define COM_WRITE_VALUE _IOR('a','b',int32_t*)
+#define COM_WRITE_VALUE _IOW('a','a',int32_t*)
+#define COM_READ_VALUE _IOR('a','b',int32_t*)
 
 
 ssize_t com_read(struct file* ps_file, char __user* psz_user_buffer,
