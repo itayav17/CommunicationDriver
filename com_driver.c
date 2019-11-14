@@ -5,107 +5,113 @@
 #include <linux/module.h>
 #include <linux/uaccess.h>
 #include <linux/slab.h>
-#include "net_driver.h"
-#include "net_types.h"
-#include "net_defs.h"
+#include <linux/kdev_t.h>
+#include <linux/device.h>
+#include "com_driver.h"
 
 
-MODULE_AUTHOR("Itay Avraham - https://www.linkedin.com/in/itay-avraham-76996b51");
+MODULE_AUTHOR("Itay Avraham");
 MODULE_DESCRIPTION("A simple linux char driver");
-MODULE_LICENSE("NA");
-
-
-//
-// Static variables
-//
-
-// Counts the number of times the device is opened.
-static unsigned int s_uNumberOpens = 0;
+MODULE_LICENSE("GPL");
 
 //
 // Global variables.
 //
 
-// Network info (cdev struct is included).
-SNET_INFO m_sNetInfo[NET_MAX_MINOR];
+// Device major and minor number.
+dev_t u_dev_t;
 
+static struct class *dev_class;
 
-ssize_t net_read(struct file* psFile, char __user* pszUserBuffer,
-                 size_t iCount, loff_t* puOffsetPointer)
+// communication info (cdev struct is included).
+SCOM_INFO s_com_info[MINOR_COUNT_NUMBER];
+
+//
+// Passing arguments to device driver.
+//
+int i_value_param = 0;
+module_param(i_value_param, int, S_IRUSR|S_IWUSR);
+
+//
+// File operation functions
+//
+
+ssize_t com_read(struct file* ps_file, char __user* psz_user_buffer,
+                 size_t i_count, loff_t* pu_offset_pointer)
 {
-    char* pszBuffer = 
-        (char*)psFile->private_data;
-    ssize_t iLen =
-        iCount - *puOffsetPointer;
+    char* psz_buffer = 
+        (char*)ps_file->private_data;
+    ssize_t i_len =
+        i_count - *pu_offset_pointer;
 
 
-    if (iLen <= 0)
+    if (i_len <= 0)
         return 0;
 
-    // Read data from a buffer in net_info
+    // Read data from a buffer in com_info
     //   to user buffer
-    if (copy_to_user(psFile->private_data,(void*)(pszBuffer + *puOffsetPointer),
-                        iLen))
+    if (copy_to_user(ps_file->private_data,(void*)(psz_buffer + *pu_offset_pointer),
+                        i_len))
         return -EFAULT;
 
     // Advanced the counter.
-    *puOffsetPointer +=
-        iLen;
+    *pu_offset_pointer +=
+        i_len;
 
-    return iLen; 
+    return i_len; 
 }
 
 
 
 
-ssize_t net_write(struct file* psFile, const char __user* pszUserBuffer,
-                  size_t iCount, loff_t* puOffsetPointer)
+ssize_t com_write(struct file* ps_file, const char __user* psz_user_buffer,
+                  size_t i_count, loff_t* pu_offset_pointer)
 {
-    char* pszBuffer = 
-        (char*)psFile->private_data;
-    ssize_t iLen =
-        iCount - *puOffsetPointer;
+    char* psz_buffer = 
+        (char*)ps_file->private_data;
+    ssize_t i_len =
+        i_count - *pu_offset_pointer;
 
-    if (iLen <= 0)
+    if (i_len <= 0)
         return 0;
 
-    // Read data from a buffer in net_info
+    // Read data from a buffer in com_info
     //   to user buffer.
-    if (copy_to_user((void*)(pszBuffer + *puOffsetPointer),psFile->private_data,
-                        iLen))
+    if (copy_to_user((void*)(psz_buffer + *pu_offset_pointer),ps_file->private_data,
+                        i_len))
         return -EFAULT;
 
     // Advanced the counter.
-    *puOffsetPointer +=
-        iLen;
+    *pu_offset_pointer +=
+        i_len;
 
-    return iLen;
+    return i_len;
 }
 
 
 
 
-ERROR net_open(struct inode* psInode, struct file* psFile)
+ERROR com_open(struct inode* ps_inode, struct file* ps_file)
 {
-    PSNET_INFO psNetInfo = NULL;
+    PSCOM_INFO ps_com_info = NULL;
 
     // Advanced the counter.
-    s_uNumberOpens++;
+    u_open_devices++;
 
     // Get the net info.
-    psNetInfo =
-        container_of(psInode->i_cdev,SNET_INFO,
-                        sCharDevice);
+    ps_com_info =
+        container_of(ps_inode->i_cdev,SCOM_INFO,
+                        s_cdev);
 
     // Allocate buffer.
-    psNetInfo->pszBuffer =
-        (char*)kmalloc(NET_INFO_BUFFER_SIZE,GFP_KERNEL);
+    ps_com_info->psz_buffer =
+        (char*)kmalloc(INFO_BUFFER_SIZE,GFP_KERNEL);
 
     // Save the private data.
     // Don't forget to free in
     //   the release method.
-    psFile->private_data =
-        psNetInfo->pszBuffer;
+    ps_file->private_data =
+        ps_com_info->psz_buffer;
                         
     return EOK;
 }
@@ -113,18 +119,18 @@ ERROR net_open(struct inode* psInode, struct file* psFile)
 
 
 
-ERROR net_release(struct inode* psInode, struct file* psFile)
+ERROR com_release(struct inode* ps_inode, struct file* ps_file)
 {
-    PSNET_INFO psNetInfo = NULL;
+    PSCOM_INFO ps_com_info = NULL;
 
 
-    // Get the net info.
-    psNetInfo =
-        container_of(psInode->i_cdev,SNET_INFO,
-                        sCharDevice);
+    // Get the com info.
+    ps_com_info =
+        container_of(ps_inode->i_cdev,SCOM_INFO,
+                        s_cdev);
 
     // Allocate buffer.
-    kfree((void*)psNetInfo->pszBuffer);
+    kfree((void*)ps_com_info->psz_buffer);
 
     return EOK;
 }
@@ -132,16 +138,13 @@ ERROR net_release(struct inode* psInode, struct file* psFile)
 
 
 
-ERROR net_register_driver(void)
+ERROR com_register_driver(void)
 {
-    dev_t uVersion;
-    int iMajor;
-    int iMinor;
-    ERROR iError;
+    ERROR i_error;
 
     
     // Major version is supplied ?
-    if (NET_MAJOR)
+    if (STATIC_ALLOC)
     {
         // TODO:
         // Write a script that supplied these major
@@ -150,83 +153,77 @@ ERROR net_register_driver(void)
         // From kernel 2.6 the major and minor version
         //   are combined to 32 bit: MSB 12 bit
         //   represents the major.
-        uVersion = 
-            MKDEV(NET_MAJOR,0);
+        u_dev_t = 
+            MKDEV(MAJOR_NUMBER,0);
         
         // Register the device class (statically assignment).
-        if ((iError = register_chrdev_region(uVersion,NET_MAX_MINOR,
-                                             "Net driver by Itay Avraham")) != EOK);
+        if ((i_error = register_chrdev_region(u_dev_t,MINOR_COUNT_NUMBER,
+                                             "com_driver")) != EOK);
         {
             // Failed to register.
-            //print_error("Failed to register device driver (statically assignment)");
+            // print_error("Failed to register device driver (statically assignment)");
             goto ReturnOnError;
         }
     } 
     else
     {
         // Register the device class (dynamically assignment).
-        iError = alloc_chrdev_region(&uVersion,NET_MINOR,
-                                        NET_MAX_MINOR,"Net driver by Itay Avraham");
+        i_error = alloc_chrdev_region(&u_dev_t,FIRST_MINOR_NUMBER,
+                                        MINOR_COUNT_NUMBER,"com_driver");
         
         // If the iError is less than 0, then the allocation
         //   failed to allocate a major number.
-        if (iError < 0)
+        if (i_error < 0)
         {
             // Failed to register.
             //print_error("Failed to register driver (dynamically assignment).");
             goto ReturnOnError;
         }
 
-        // Get the major and minor number.
-        iMajor =
-            MAJOR(uVersion);
-        iMinor =
-            MINOR(uVersion);
-
         // Print the major and minor number.
-        print_debug("Major version is:%d, Minor version is:%d",NET_MAJOR,NET_MINOR);
+        printk(KERN_INFO "Major = %d Minor = %d \n",MAJOR(u_dev_t), MINOR(u_dev_t));
     }
 
     return EOK;
 
 ReturnOnError:
 
-    return iError;
+    return i_error;
 }
 
 
 
 
-ERROR net_cdev_init(void)
+ERROR com_cdev_init(void)
 {
-    unsigned int uNumberOfDevice = 1;
-    unsigned int uCounter;
-    ERROR iError;
+    unsigned int u_number_of_devices = 1;
+    unsigned int u_counter;
+    ERROR i_error;
 
 
     // Link the character device to the driver.
-    for(uCounter = 0;
-            uCounter < NET_MAX_MINOR;
-            uCounter++)
+    for(u_counter = 0;
+            u_counter < MINOR_COUNT_NUMBER;
+            u_counter++)
     {
         // Initialize the char device to the
         //   file opeartion fields.
-        cdev_init(&m_sNetInfo[uCounter].sCharDevice,&net_file_operations);
+        cdev_init(&s_com_info[u_counter].s_cdev,&com_file_operations);
 
         // Member initialization.
-        m_sNetInfo[uCounter].sCharDevice.owner =
+        s_com_info[u_counter].s_cdev.owner =
             THIS_MODULE;
-        m_sNetInfo[uCounter].sCharDevice.ops =
-            &net_file_operations;
+        s_com_info[u_counter].s_cdev.ops =
+            &com_file_operations;
         
         // Add the device to the system.
-        if ((iError = 
-                cdev_add(&m_sNetInfo[uCounter].sCharDevice,MKDEV(NET_MAJOR, uCounter),
-                            uNumberOfDevice)) < 0)
+        if ((i_error = 
+                cdev_add(&s_com_info[u_counter].s_cdev,MKDEV(MAJOR_NUMBER, u_counter),
+                            u_number_of_devices)) < 0)
         {
-            print_error("Failed to add the device to the system");
+            printk(KERN_ERR "Failed to add the device to the system\n");
 
-            iError = -ENOENT;
+            i_error = -ENOENT;
             goto ReturnOnError;
         }
     }
@@ -235,54 +232,90 @@ ERROR net_cdev_init(void)
 
 ReturnOnError:
 
-    return iError;
+    return i_error;
 }
 
 
 
 
-static int net_driver_init(void)
+static int com_driver_init(void)
 {
-    ERROR iError;
+    ERROR i_error;
+    
+    printk(KERN_INFO "%s - %s:%d",__FILE__,__FUNCTION__, __LINE__);
+    printk(KERN_INFO "Argument value in init:%d",i_value_param);
     
     // Register the driver.
-    if ((iError = net_register_driver() != EOK))
+    if ((i_error = com_register_driver() != EOK))
         // Register failed.
-        goto ReturnOnError;
+        goto ReturnOnErrorRegister;
+
+    /*Creating struct class*/
+    if((dev_class = class_create(THIS_MODULE,"com_driver_class")) == NULL)
+    {
+        printk(KERN_INFO "Cannot create the struct class for device.\n");
+        goto ReturnOnErrorDevice;
+    }
+
+    // Creating device.
+    if((device_create(dev_class,NULL,u_dev_t,NULL,"com_driver_device")) == NULL)
+    {
+        printk(KERN_INFO "Cannot create the Device.\n");
+        goto ReturnOnErrorDevice;
+    }
 
     // Associated the cdev structure(represent char
     //   device) to the file_operation
     //   structure. 
-    if ((iError = net_cdev_init() != EOK))
+    //if ((i_error = com_cdev_init() != EOK))
         // Register failed.
-        goto ReturnOnError;
+      //  goto ReturnOnError;
 
-    
 
     return EOK;
 
-ReturnOnError:
 
-    return iError;
+ReturnOnErrorDevice:
+
+
+    // Delete the device file.
+    class_destroy(dev_class);
+
+
+ReturnOnErrorRegister:
+
+
+    // Unregister the driver.
+    unregister_chrdev_region(u_dev_t,MINOR_COUNT_NUMBER);
+
+    return i_error;
 }
 
 
 
 
-static void net_driver_exit(void)
+static void com_driver_exit(void)
 {
     unsigned int uCounter;
 
+    printk(KERN_INFO "On exit function: size of opened devices is %d and argument value:%d.\n",
+           u_open_devices, i_value_param);
+
+    // Destroy the device file.
+    device_destroy(dev_class,u_dev_t);
+    class_destroy(dev_class);
+
+    /*
     for(uCounter = 0;
-            uCounter < NET_MAX_MINOR;
+            uCounter < MINOR_COUNT_NUMBER;
             uCounter++)
         // Release all the devices.
-        cdev_del(&m_sNetInfo[uCounter].sCharDevice);
-
-    // Remove allocation of device identifiers.
-    unregister_chrdev_region(MKDEV(NET_MAJOR,0),NET_MAX_MINOR);
+        cdev_del(&s_com_info[uCounter].s_cdev);
+*/
+    // Unregister the driver.
+    unregister_chrdev_region(u_dev_t,MINOR_COUNT_NUMBER);
 }
 
 
-module_init(net_driver_init);
-module_exit(net_driver_exit);
+module_init(com_driver_init);
+module_exit(com_driver_exit);
