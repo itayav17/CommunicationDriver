@@ -7,6 +7,7 @@
 #include <linux/slab.h>
 #include <linux/kdev_t.h>
 #include <linux/device.h>
+#include<linux/proc_fs.h>
 #include "com_driver.h"
 
 
@@ -271,6 +272,9 @@ static int com_driver_init(void)
         goto ReturnOnErrorDevice;
     }
 
+    // Creating Proc entry.
+    proc_create("com_driver_proc",0666,NULL,&com_file_operations);
+
     return EOK;
 
 
@@ -296,6 +300,9 @@ ReturnOnErrorRegister:
 static void com_driver_exit(void)
 {
     unsigned int uCounter;
+
+    // Remove the proc entry.
+    remove_proc_entry("com_driver_proc",NULL);
 
     // Destroy the device file.
     device_destroy(dev_class,u_dev_t);
