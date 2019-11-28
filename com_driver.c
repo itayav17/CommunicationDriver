@@ -8,6 +8,8 @@
 #include <linux/kdev_t.h>
 #include <linux/device.h>
 #include<linux/proc_fs.h>
+#include <linux/kthread.h>
+#include <linux/wait.h>
 #include "com_driver.h"
 
 
@@ -23,6 +25,11 @@ static struct class* dev_class;
 uint8_t* u8_kernel_buffer;
 int32_t i32_value = 0;
 
+// Wait queue
+static struct task_struct* wait_thread;
+wait_queue_head_t wait_queue_etx;
+int wait_queue_flag = 0;
+
 // communication info (cdev struct is included).
 SCOM_INFO s_com_info[MINOR_COUNT_NUMBER];
 
@@ -31,6 +38,35 @@ SCOM_INFO s_com_info[MINOR_COUNT_NUMBER];
 //
 int i_value_param = 0;
 module_param(i_value_param, int, S_IRUSR|S_IWUSR);
+
+
+static int wait_function(void *unused)
+{
+    // That thread will always wait for the event.
+    while(true)
+    {
+        printk(KERN_INFO "Waiting For Event...\n");
+
+        // sleep until a condition gets true.
+        wait_event_interruptible(wait_queue_etx, wait_queue_flag != 0 );
+
+        // Interrupt arrive from the exit function?
+        if(wait_queue_flag == 2)
+        {
+            printk(KERN_INFO "Event Came From Exit Function\n");
+            return 0;
+        }
+        
+        printk(KERN_INFO "Event Came From Read Function.\n");
+
+        wait_queue_flag = 0;
+    }
+
+    return 0;
+}
+
+
+
 
 //
 // File operation functions
@@ -83,6 +119,10 @@ ssize_t com_read(struct file* ps_file, char __user* psz_user_buffer,
     printk(KERN_INFO "Driver read Function Called...!!!\n");
 
     u_return_bytes = copy_to_user(psz_user_buffer, u8_kernel_buffer, i_size);
+    
+    // Wake up a process.
+    wait_queue_flag = 1;
+    wake_up_interruptible(&wait_queue_etx);
 
     return 0;
 }
@@ -272,6 +312,26 @@ static int com_driver_init(void)
         goto ReturnOnErrorDevice;
     }
 
+    //Initialize wait queue
+    init_waitqueue_head(&wait_queue_etx);
+
+    // Create the kernel thread with name 'mythread'
+    wait_thread = kthread_create(wait_function, NULL, "WaitThread");
+
+    if (wait_thread)
+    {
+        printk("Thread Created successfully\n");
+        
+        // Wake up the process.
+        wake_up_process(wait_thread);
+    }
+
+    else
+    {
+        printk(KERN_INFO "Thread creation failed\n");
+        goto ReturnOnErrorDevice;
+    }
+
     // Creating Proc entry.
     proc_create("com_driver_proc",0666,NULL,&com_file_operations);
 
@@ -300,6 +360,13 @@ ReturnOnErrorRegister:
 static void com_driver_exit(void)
 {
     unsigned int uCounter;
+
+    // Change the flag.
+    wait_queue_flag = 2;
+
+    // Wake up only one process from the wait queue.
+    // NOTE: this process must be in interruptible sleep.
+    wake_up_interruptible(&wait_queue_etx);
 
     // Remove the proc entry.
     remove_proc_entry("com_driver_proc",NULL);
