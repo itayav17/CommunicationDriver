@@ -22,7 +22,7 @@ ERROR com_open(struct inode* ps_inode, struct file* ps_file);
 
 ERROR com_release(struct inode* ps_inode, struct file* ps_file);
 
-static long etx_ioctl(struct file* s_file, unsigned int i_cmd,
+static long com_ioctl(struct file* s_file, unsigned int i_cmd,
                       unsigned long ul_arg);
 
 //
@@ -44,5 +44,5 @@ struct file_operations com_file_operations =
     .release = com_release,
     .read = com_read,
     .write = com_write,
-    .unlocked_ioctl = etx_ioctl
+    .unlocked_ioctl = com_ioctl
 };

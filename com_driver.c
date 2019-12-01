@@ -72,7 +72,7 @@ static int wait_function(void *unused)
 // File operation functions
 //
 
-static long etx_ioctl(struct file* s_file, unsigned int i_cmd,
+static long com_ioctl(struct file* s_file, unsigned int i_cmd,
                       unsigned long ul_arg)
 {
     unsigned long u_return_bytes;
